@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Web3ModalProvider from "@/context/WagmiProvider";
+import Navbar from "@/components/Navbar";
 import { cookieToInitialState } from "wagmi";
-import { config } from "@/config/wagmi";
+import { config } from "@/config";
 import { headers } from "next/headers";
+import AppKitProvider from "@/context";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,10 +23,14 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <Web3ModalProvider initialState={initialState}>
-        <body className={inter.className}>{children}</body>
-        <script src="https://telegram.org/js/telegram-web-app.js" async />
-      </Web3ModalProvider>
+      <body className={inter.className}>
+        <AppKitProvider initialState={initialState}>
+          <Navbar />
+
+          <div className="px-8 py-4">{children}</div>
+        </AppKitProvider>
+      </body>
+      <script src="https://telegram.org/js/telegram-web-app.js" async />
     </html>
   );
 }
