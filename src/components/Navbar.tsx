@@ -3,7 +3,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import TelegramLoginButton from "./TelegramLoginButton";
 import { type TelegramUser } from "../../helpers/types";
-import { mintPkpTg } from "../../helpers/lit";
+import {
+  getPkpSessionSigs,
+  mintPkpTg,
+  preparePKPWallet,
+} from "../../helpers/lit";
+import { useLitContext } from "./Context";
 
 type MintedPkp = {
   tokenId: string;
@@ -14,10 +19,15 @@ type PkpSessionSigs = any;
 
 const Navbar = () => {
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
-  const [mintedPkp, setMintedPkp] = useState<MintedPkp | null>(null);
-  const [pkpSessionSigs, setPkpSessionSigs] = useState<PkpSessionSigs | null>(
-    null
-  );
+  const {
+    mintedPkp,
+    setMintedPkp,
+    pkpSessionSigs,
+    setPkpSessionSigs,
+    pkpWallet,
+    setPkpWallet,
+  } = useLitContext();
+
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const verifyTelegramUser = useCallback(
@@ -136,19 +146,55 @@ const Navbar = () => {
     }
   }, [telegramUser, handleMintPkp]);
 
-  // const handleGetPkpSessionSigs = async () => {
-  //   if (telegramUser && mintedPkp) {
-  //     try {
-  //       const sessionSigs = await getPkpSessionSigs(telegramUser, mintedPkp);
-  //       setPkpSessionSigs(sessionSigs);
-  //     } catch (error) {
-  //       console.error("Failed to get PKP session signatures:", error);
-  //       setValidationError(
-  //         "Failed to get PKP session signatures. Please try again."
-  //       );
-  //     }
-  //   }
-  // };
+  const createWallet = useCallback(async () => {
+    if (mintedPkp && pkpSessionSigs) {
+      const wallet = await preparePKPWallet(
+        mintedPkp,
+        pkpSessionSigs,
+        "https://rpc.ankr.com/eth_goerli"
+      );
+      setPkpWallet(wallet);
+    }
+  }, [mintedPkp, pkpSessionSigs, setPkpWallet]);
+
+  useEffect(() => {
+    if (pkpSessionSigs && mintedPkp) {
+      createWallet();
+    }
+  }, [pkpSessionSigs, mintedPkp, createWallet]);
+
+  const handleGetPkpSessionSigs = useCallback(async () => {
+    if (telegramUser && mintedPkp) {
+      const attemptGetSessionSigs = async (retries = 3) => {
+        try {
+          console.log("🔄 Getting PKP session signatures...");
+          const sessionSigs = await getPkpSessionSigs(telegramUser, mintedPkp);
+          setPkpSessionSigs(sessionSigs);
+        } catch (error) {
+          console.error(
+            `Failed to get PKP session signatures (${retries} retries left):`,
+            error
+          );
+          if (retries > 0) {
+            console.log("Retrying to get PKP session signatures...");
+            await attemptGetSessionSigs(retries - 1);
+          } else {
+            console.error("All attempts to get PKP session signatures failed");
+            setValidationError(
+              "Failed to get PKP session signatures after multiple attempts. Please try again later."
+            );
+          }
+        }
+      };
+      attemptGetSessionSigs();
+    }
+  }, [telegramUser, mintedPkp, setPkpSessionSigs, setValidationError]);
+
+  useEffect(() => {
+    if (telegramUser && mintedPkp) {
+      handleGetPkpSessionSigs();
+    }
+  }, [telegramUser, mintedPkp, handleGetPkpSessionSigs]);
 
   return (
     <nav className="w-full py-2 flex px-10 justify-between items-center border-b-[0.5px] border-gray-500">
